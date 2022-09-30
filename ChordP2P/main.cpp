@@ -3,12 +3,6 @@
 #include"common.hpp"
 
 
-// deplacer tempate dans .h
-// instancer noeud
-// implementer les methodes de chords et TcpComunicator
-
-#define CHORD_CLUSTER_SIZE 2
-#define NODES 10
 
 using usock = Socket;
 using uchord = Chord<usock>;
@@ -21,10 +15,10 @@ using vec_unode = std::vector<unode_ptr>;
 
 TCP_ADDR helper_create_random_srv_config() 
 {
-	std::string port = std::to_string(random() % 15000 + 4000);
+	std::string port = std::to_string(random() % 30000 + 4000);
 	auto ip = "127.0.0.1";
 	TCP_ADDR tcp_infos = { ip , port };
-	usleep(500000);
+	usleep(5000);
 	return tcp_infos;
 }
 
@@ -44,8 +38,10 @@ unode_ptr helper_create_node(NODE_INFO& ninfos)
 }
 
 
-void simulate_env()
+void simulate_env(int nodes_size, int chords_size)
 {
+	int  CHORD_CLUSTER_SIZE = chords_size;
+	int NODES = nodes_size;
 	PeriodicScheduler periodic_sheduler;
 	auto chords = vec_pchord();
 	auto cinfos = std::vector<CHORD_INFO>();
@@ -66,7 +62,7 @@ void simulate_env()
 	auto nodes = vec_unode();
 	auto ninfos = std::vector<NODE_INFO>();
 	// instanciate node
-	for (int i = 0; i < NODES; i++)
+	for (int i = 0; i < (int)NODES/2; i++)
 	{
 		NODE_INFO ninfo = NODE_INFO{ -1};
 		unode_ptr nd = helper_create_node(ninfo);
@@ -76,19 +72,31 @@ void simulate_env()
 		nodes.push_back(nd);
 	}
 	// infinite wait
-	std::thread t([&]() {
-		while (true)
-		{
-			usleep(1000000);
-		}
-	});
-	t.join();
-	
+	usleep(10000000);
+
+	// recreate new node after a short break
+	for (int i = 0; i < (int)NODES/2; i++)
+	{
+		NODE_INFO ninfo = NODE_INFO{ -1 };
+		unode_ptr nd = helper_create_node(ninfo);
+		// Register a node to a random chord
+		nd->Register(cinfos[rand() % CHORD_CLUSTER_SIZE], periodic_sheduler);
+		ninfos.push_back(std::move(ninfo));
+		nodes.push_back(nd);
+	}
+
+	// infinite wait
+	while (true)
+	{
+		usleep(10000000);
+	}
 	
 }
 
-int main()
+int main(int argc, char* argv[])
 {
+	int nodes = stoi(argv[1]);
+	int chords = stoi(argv[2]);
 	srand(time(NULL));
-	simulate_env();
+	simulate_env(nodes, chords);
 }

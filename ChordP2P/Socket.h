@@ -48,8 +48,8 @@ public:
     int set_blocking();
     int set_non_blocking();
     int socket_shutdown(int how);
-    void close();
-    static int select(vector<Socket>* reads, vector<Socket>* writes, vector<Socket>* exceptions, int seconds);
+    void _close();
+    static int select(vector<Socket *>* reads, vector<Socket *>* writes, vector<Socket>* exceptions, int seconds);
     static string ipFromHostName(string hostname);
 };
 #endif

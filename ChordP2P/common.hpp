@@ -23,21 +23,18 @@ auto log_text_periodic(T&& text)
     std::cout << text << std::endl;
 }
 template <class T>
-auto helper_receive_data(T  client, std::string& buffer)
+auto helper_receive_data(T & client, std::string& buffer)
 {
-    while (true) {
-        std::vector<T> reads(1);
-        reads[0] = client;
-        int seconds = 10; //Wait 10 seconds for input
-        if (T::select(&reads, NULL, NULL, seconds) < 1) { //Socket::select waits until masterSocket reveives some input (for example a message)
-            //No Input
-            continue;
-        }
-        else {
-            client.socket_read(buffer, MAX_READ_SIZE);
-            break;
-        }
+    std::vector<T *> reads(1);
+    reads[0] = &client;
+    int seconds = 3; //Wait 3 seconds for input
+    if (T::select(&reads, NULL, NULL, seconds) < 1) { //Socket::select waits until masterSocket reveives some input (for example a message)
+        //No Input
     }
+    else {
+        client.socket_read(buffer, MAX_READ_SIZE);
+    }
+    
 }
 
 
@@ -74,7 +71,8 @@ public:
 	template <typename T1>
 	static std::string PrepareSendFinger(T1 & fingerTable) {
 		json data = {
-			{"FINGER_TABLE", fingerTable}
+			{"FINGER_TABLE", fingerTable},
+			{"PACKET_ID", PacketID::FIX_FINGER}
 		};
 		return data.dump();
 	}

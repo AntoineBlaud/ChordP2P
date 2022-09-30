@@ -144,8 +144,8 @@ int Socket::socket_write(string msg) {
     return status;
 }
 int Socket::socket_safe_read(string& buf, int len, int seconds) {
-    vector<Socket> reads;
-    reads.push_back(*this);
+    vector<Socket* > reads;
+    reads.push_back(this);
     int count = Socket::select(&reads, NULL, NULL, seconds);
     if (count < 1) {
         //No new Connection
@@ -271,17 +271,17 @@ int Socket::socket_shutdown(int how) {
     int status = ::shutdown(sock, how);
     if (status < 0) {
         //exit(1);
-        cerr << "shutdown error: " << gai_strerror(errno) << endl;
+        //cerr << "shutdown error: " << gai_strerror(errno) << endl;
     }
     return status;
 }
 
-void Socket::close() {
-    ::close(sock);
+void Socket::_close() {
+    close(this->sock);
 }
 
-int Socket::select(vector<Socket>* reads, vector<Socket>* writes, vector<Socket>* exceptions, int seconds) {
-    int id = reads->at(0).sock;
+int Socket::select(vector<Socket*> * reads, vector<Socket*>* writes, vector<Socket>* exceptions, int seconds) {
+    int id = reads->at(0)->sock;
     struct timeval tv;
     fd_set readfds;
     fd_set writefds;
@@ -300,7 +300,7 @@ int Socket::select(vector<Socket>* reads, vector<Socket>* writes, vector<Socket>
     int maxSock = 0;
     if (reads != NULL) {
         for (int i = 0; i < reads->size(); i++) {
-            int sockInt = reads->at(i).sock;
+            int sockInt = reads->at(i)->sock;
             if (sockInt > maxSock) {
                 maxSock = sockInt;
             }
@@ -309,7 +309,7 @@ int Socket::select(vector<Socket>* reads, vector<Socket>* writes, vector<Socket>
     }
     if (writes != NULL) {
         for (int i = 0; i < writes->size(); i++) {
-            int sockInt = writes->at(i).sock;
+            int sockInt = writes->at(i)->sock;
             if (sockInt > maxSock) {
                 maxSock = sockInt;
             }
@@ -335,14 +335,14 @@ int Socket::select(vector<Socket>* reads, vector<Socket>* writes, vector<Socket>
     }
     if (reads != NULL) {
         for (int i = (int)reads->size() - 1; i >= 0; i--) {
-            if (!FD_ISSET(reads->at(i).sock, &readfds)) {
+            if (!FD_ISSET(reads->at(i)->sock, &readfds)) {
                 reads->erase(reads->begin() + i);
             }
         }
     }
     if (writes != NULL) {
         for (int i = (int)writes->size() - 1; i >= 0; i--) {
-            if (!FD_ISSET(writes->at(i).sock, &writefds)) {
+            if (!FD_ISSET(writes->at(i)->sock, &writefds)) {
                 writes->erase(reads->begin() + i);
             }
         }

@@ -94,9 +94,13 @@ void CLASS_TEMPLATE::leaves()
 template<class usock>
 void CLASS_TEMPLATE::SendFinger(usock& client)
 {
-	client.socket_write(RequestBuilder::PrepareSendFinger(this->fingerTable));
-	client.socket_shutdown(2);
-	client.close();
+	try {
+		client.socket_write(RequestBuilder::PrepareSendFinger(this->fingerTable));
+		client.socket_shutdown(2);
+		client._close();
+	}catch (...) {
+		cout << "Error sending finger ... " << endl;
+	}
 }
 template<class usock>
 void CLASS_TEMPLATE::HandleIncommingRequest(usock& client)
@@ -118,28 +122,34 @@ void CLASS_TEMPLATE::HandleIncommingRequest(usock& client)
 	default:
 		break;
 	}
+	client.socket_shutdown(2);
+	client._close();
 }
 
 template <class usock>
 void CLASS_TEMPLATE::Register(CHORD_INFO chs, PeriodicScheduler& periodic_sheduler)
 {
 	// send the request
-	this->chInfos = chs;
-	this->scheduler = &periodic_sheduler;
-	this->tcpCom->clientSocket = std::make_shared<usock>(usock(AF_INET, SOCK_STREAM, 0));
-	auto sock = this->tcpCom->clientSocket;
-	sock->connect(this->chInfos.tcpinfos.srv_ip, this->chInfos.tcpinfos.srv_port);
-	std::string request = RequestBuilder::JoinChord(this->chInfos, this->ndInfos);
-	sock->socket_write(request);
-	// receive the response
-	std::string response;
-	helper_receive_data<usock>(*sock, response);
-	json data = json::parse(response);
-	sock->socket_shutdown(2);
-	sock->close();
-	this->ndInfos.guid = data["GUID"];
-	this->InitFingerTable<json>(data);
-	this->StartScheduleJobs(*this->scheduler);
+	try {
+		this->chInfos = chs;
+		this->scheduler = &periodic_sheduler;
+		auto sock = std::make_unique<usock>(usock(AF_INET, SOCK_STREAM, 0));
+		sock->connect(this->chInfos.tcpinfos.srv_ip, this->chInfos.tcpinfos.srv_port);
+		std::string request = RequestBuilder::JoinChord(this->chInfos, this->ndInfos);
+		sock->socket_write(request);
+		// receive the response
+		std::string response;
+		helper_receive_data<usock>(*sock, response);
+		json data = json::parse(response);
+		sock->socket_shutdown(2);
+		sock->_close();
+		this->ndInfos.guid = data["GUID"];
+		this->InitFingerTable<json>(data);
+		this->StartScheduleJobs(*this->scheduler);
+	}
+	catch (...) {
+		cout << "Error while registring ... ";
+	}
 	
 }
 
@@ -181,25 +191,32 @@ void CLASS_TEMPLATE::FixFingers()
 			// Query the good node
 			if (!(item.first >= guids[i] && item.first <= guids[i + 1]))
 				continue;
-
 			json sucessor_info = json::parse(item.second);
 			string ip = sucessor_info["IP"];
 			string port = sucessor_info["PORT"];
-			// Recreate socket
-			this->tcpCom->clientSocket = std::make_shared<usock>(usock(AF_INET, SOCK_STREAM, 0));
-			auto sock = this->tcpCom->clientSocket;
-			sock->connect(ip, port);
-			sock->socket_write(RequestBuilder::PrepareFixFinger());
-			string response;
-			helper_receive_data(*sock, response);
-			// ici faire un template
-			std::map<long, std::string> response_parsed = json::parse(response)["FINGER_TABLE"];
 			
-			// extend fingerCache
-			// add the current item 
-			finger_cache[item.first] = item.second;
-			for (auto& item_suc : response_parsed) {
-				finger_cache[item_suc.first] = item_suc.second;
+			try {
+				// Recreate socket
+				auto sock = std::make_unique<usock>(usock(AF_INET, SOCK_STREAM, 0));
+				sock->connect(ip, port);
+				sock->socket_write(RequestBuilder::PrepareFixFinger());
+				string response;
+				helper_receive_data(*sock, response);
+				cout << "Fetching finger table from: "<< item.first  << endl;
+				// ici faire un template
+				std::map<long, std::string> response_parsed = json::parse(response)["FINGER_TABLE"];
+				sock->socket_shutdown(2);
+				sock->_close();
+
+				// extend fingerCache
+				// add the current item 
+				finger_cache[item.first] = item.second;
+				for (auto& item_suc : response_parsed) {
+					finger_cache[item_suc.first] = item_suc.second;
+				}
+			}
+			catch (...){
+					cout << "Error while connecting to " << ip << ":" << port << "->" << item.second << endl;
 			}
 		}
 	}
@@ -216,7 +233,7 @@ void CLASS_TEMPLATE::FixFingers()
 	{
 		for (auto& item : finger_cache)
 		{
-			if (item.first >= guids[i] && item.first <= guids[i + 1])
+			if (item.first >= guids[i] && item.first <= guids[i + 1] && this->fingerTable.find(item.first) == this->fingerTable.end())
 			{
 				this->fingerTable[item.first] = item.second;
 #ifdef DEBUG
@@ -231,7 +248,7 @@ void CLASS_TEMPLATE::FixFingers()
 
 void schedule_fingers(PeriodicScheduler& scheduler, CLASS_TEMPLATE& n)
 {
-	scheduler.addTask("fix_finger", boost::bind(&CLASS_TEMPLATE::FixFingers, &n), 5);
+	scheduler.addTask("fix_finger", boost::bind(&CLASS_TEMPLATE::FixFingers, &n), 20);
 	scheduler.run();
 }
 

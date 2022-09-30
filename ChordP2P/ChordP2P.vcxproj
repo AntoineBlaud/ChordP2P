@@ -101,7 +101,7 @@
     <ClCompile>
       <AdditionalOptions>-lpthread %(AdditionalOptions)</AdditionalOptions>
       <AdditionalIncludeDirectories>C:\Users\antoi\source\repos\Chordp2p\ChordP2P\boost_1_55_0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <CppLanguageStandard>c++14</CppLanguageStandard>
+      <CppLanguageStandard>c++20</CppLanguageStandard>
     </ClCompile>
     <Link>
       <AdditionalOptions>-lpthread %(AdditionalOptions)</AdditionalOptions>

@@ -112,8 +112,14 @@ void CLASS_TEMPLATE::RegisterNode(usock& client, T infos)
 		}
 	}
 	auto data = RequestBuilder::PrepareClientReponse(sucessors, assigned_guid);
-	client.socket_write(data);
-	client.close();
+	try {
+		client.socket_write(data);
+		client.socket_shutdown(2);
+		client._close();
+	}
+	catch (std::exception& e) {
+		std::cerr << e.what() << std::endl;
+	}
 
 	json message = {
 		{"PACKET_ID", PacketID::CLIENT_JOINED},
@@ -157,12 +163,11 @@ void CLASS_TEMPLATE::registerNotify(T infos)
 	std::mutex mtx;
 	mtx.lock();
 	auto notify = [](std::string ip, std::string port, auto* instance, auto&& request) {
-		instance->tcpCom->clientSocket = std::make_shared<usock>(usock(AF_INET, SOCK_STREAM, 0));
-		auto  sock = instance->tcpCom->clientSocket;
+		auto sock = std::make_shared<usock>(usock(AF_INET, SOCK_STREAM, 0));
 		sock->connect(ip, port);
 		sock->socket_write(request);
 		sock->socket_shutdown(2);
-		sock->close();
+		sock->_close();
 	};
 
 	const long chord_top = this->chordInfos.range.second;
@@ -173,7 +178,12 @@ void CLASS_TEMPLATE::registerNotify(T infos)
 			auto node = this->superGUIDTable[i];
 			std::string ip = json::parse(node)["IP"];
 			std::string port = json::parse(node)["PORT"];
-			notify(ip, port, this, infos);
+			try {
+				notify(ip, port, this, infos);
+			}
+			catch (...) {
+				cout << "Error when sending notify to client " << endl;
+			}
 		}
 	}
 	mtx.unlock();
@@ -199,6 +209,8 @@ void CLASS_TEMPLATE::HandleIncommingRequest(usock& client)
 	default:
 		break;
 	}
+	client.socket_shutdown(2);
+	client._close();
 	
 }
 
@@ -228,16 +240,19 @@ void CLASS_TEMPLATE::Notify()
 		return;
 	}
 	auto notify = [](std::string ip, std::string port, auto* instance, auto& request) {
-		instance->tcpCom->clientSocket = std::make_shared<usock>(usock(AF_INET, SOCK_STREAM, 0));
-		auto  sock = instance->tcpCom->clientSocket;
+		auto  sock = std::make_shared<usock>(usock(AF_INET, SOCK_STREAM, 0));
 		sock->connect(ip, port);
 		sock->socket_write(request);
 		sock->socket_shutdown(2);
-		sock->close();
+		sock->_close();
 	};
 
 	for (auto& chord : this->chordsNetwork) {
-		notify(chord.tcpinfos.srv_ip, chord.tcpinfos.srv_port, this, request);
+		try {
+			notify(chord.tcpinfos.srv_ip, chord.tcpinfos.srv_port, this, request);
+		}catch (...) {
+			cout << "Error while sending notify ... ";
+		}
 	}
 	// clear it
 	this->messagesPool = std::vector<std::string>();
